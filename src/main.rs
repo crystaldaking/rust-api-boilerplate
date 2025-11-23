@@ -3,6 +3,9 @@ mod config;
 mod db;
 mod http;
 mod redis_client;
+mod models;
+mod repositories;
+mod services;
 
 use anyhow::Result;
 use config::AppConfig;
