@@ -1,14 +1,16 @@
 use axum::{
-    extract::State,
+    extract::{Extension, State},
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     auth::create_token,
     http::AppState,
     models::user::User,
+    repositories::user_repository::UserRepository,
     services::user_service::UserService,
 };
 
@@ -37,6 +39,11 @@ pub struct LoginResponse {
     pub user: UserResponse,
 }
 
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+}
+
 impl From<User> for UserResponse {
     fn from(u: User) -> Self {
         Self {
@@ -50,15 +57,28 @@ impl From<User> for UserResponse {
 // POST /auth/register
 pub async fn register(
     State(state): State<AppState>,
-    Json(payload): Json<RegisterRequest>, ) -> Result<(StatusCode, Json<UserResponse>), StatusCode> {
+    Json(payload): Json<RegisterRequest>,
+) -> Result<(StatusCode, Json<UserResponse>), (StatusCode, Json<ErrorResponse>)> {
     let user = UserService::register(&state.db_pool, &payload.email, &payload.password)
         .await
         .map_err(|err| {
-            if err.to_string() == "user_already_exists" {
-                StatusCode::CONFLICT
+            let msg = err.to_string();
+            eprintln!("[register] error: {msg}");
+
+            if msg == "user_already_exists" {
+                (
+                    StatusCode::CONFLICT,
+                    Json(ErrorResponse {
+                        error: "user_already_exists".into(),
+                    }),
+                )
             } else {
-                eprintln!("register error: {err:?}");
-                StatusCode::INTERNAL_SERVER_ERROR
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "internal_error".into(),
+                    }),
+                )
             }
         })?;
 
@@ -68,18 +88,46 @@ pub async fn register(
 // POST /auth/login
 pub async fn login(
     State(state): State<AppState>,
-    Json(payload): Json<LoginRequest>, ) -> Result<Json<LoginResponse>, StatusCode> {
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, (StatusCode, Json<ErrorResponse>)> {
     let user = UserService::authenticate(&state.db_pool, &payload.email, &payload.password)
         .await
         .map_err(|err| {
-            eprintln!("login error: {err:?}");
-            StatusCode::INTERNAL_SERVER_ERROR
+            eprintln!("[login] error: {err:?}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "internal_error".into(),
+                }),
+            )
         })?
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(ErrorResponse {
+                    error: "invalid_credentials".into(),
+                }),
+            )
+        })?;
 
-    let jwt_cfg = state.jwt_config.as_ref().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    let token = create_token(&user.id.to_string(), jwt_cfg)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let jwt_cfg = state.jwt_config.as_ref().ok_or_else(|| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "jwt_not_configured".into(),
+            }),
+        )
+    })?;
+
+    let token = create_token(&user.id.to_string(), jwt_cfg).map_err(|err| {
+        eprintln!("[login] token error: {err:?}");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "token_error".into(),
+            }),
+        )
+    })?;
 
     let user_resp: UserResponse = user.into();
 
@@ -87,4 +135,32 @@ pub async fn login(
         token,
         user: user_resp,
     }))
+}
+
+// GET /auth/me
+pub async fn me(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<Uuid>,
+) -> Result<Json<UserResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let user = UserRepository::find_by_id(&state.db_pool, user_id)
+        .await
+        .map_err(|err| {
+            eprintln!("[me] db error: {err:?}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "internal_error".into(),
+                }),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(ErrorResponse {
+                    error: "user_not_found".into(),
+                }),
+            )
+        })?;
+
+    Ok(Json(user.into()))
 }

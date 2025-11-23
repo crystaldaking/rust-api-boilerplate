@@ -1,6 +1,7 @@
 mod routes;
 mod controllers;
 mod middleware;
+use axum::{middleware as axum_middleware};
 
 use axum::Router;
 use redis::Client as RedisClient;
@@ -26,7 +27,10 @@ impl AppState {
 }
 
 pub fn create_app(state: AppState) -> Router {
-    Router::new()
-        .merge(routes::routes())
-        .with_state(state)
+    let public = routes::public_routes();
+    let protected = routes::protected_routes().route_layer(
+        axum_middleware::from_fn_with_state(state.clone(), middleware::require_jwt)
+    );
+
+    public.merge(protected).with_state(state)
 }
