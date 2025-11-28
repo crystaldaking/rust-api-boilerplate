@@ -46,9 +46,25 @@ This is a boilerplate project for building web APIs in Rust, inspired by Laravel
   - `cargo run`
   - API at http://localhost:8000
 
+- **For Development (with hot reload)**:
+  - Install dependencies: `make install-deps`
+  - Run with auto-restart on code changes: `make dev`
+  - API at http://localhost:8000
+
 - **With Docker**:
-  - `docker-compose up --build`
+  - `make docker-build`
+  - Or manual: `docker-compose up --build`
   - Nginx at http://localhost (port 80), API at http://localhost:8000
+
+### Useful Makefile Commands
+- `make install-deps`: Install cargo-watch and sqlx-cli
+- `make dev`: Start development server with auto-reload
+- `make test`: Run tests
+- `make watch-test`: Auto-run tests on changes
+- `make migrate`: Run database migrations
+- `make docker-up`: Start Docker services
+- `make docker-down`: Stop Docker services
+- `make docker-logs`: View API logs
 
 ### API Examples
 - `POST /auth/register` - Register user: `{"email": "user@example.com", "password": "pass"}`
@@ -122,9 +138,25 @@ MIT
   - `cargo run`
   - API на http://localhost:8000
 
+- **Для разработки (с горячей перезагрузкой)**:
+  - Установите зависимости: `make install-deps`
+  - Запустите с авто-перезапуском при изменениях: `make dev`
+  - API на http://localhost:8000
+
 - **Через Docker**:
-  - `docker-compose up --build`
+  - `make docker-build`
+  - Или вручную: `docker-compose up --build`
   - Nginx на http://localhost (порт 80), API на http://localhost:8000
+
+### Полезные команды Makefile
+- `make install-deps`: Установить cargo-watch и sqlx-cli
+- `make dev`: Запустить сервер разработки с авто-перезагрузкой
+- `make test`: Запустить тесты
+- `make watch-test`: Авто-запуск тестов при изменениях
+- `make migrate`: Запустить миграции БД
+- `make docker-up`: Запустить Docker сервисы
+- `make docker-down`: Остановить Docker сервисы
+- `make docker-logs`: Просмотр логов API
 
 ### Примеры API
 - `POST /auth/register` - Регистрация: `{"email": "user@example.com", "password": "pass"}`
