@@ -4,7 +4,8 @@ This is a boilerplate project for building web APIs in Rust, inspired by Laravel
 
 ## English
 
-### Features- **Axum** for fast HTTP server
+### Features
+- **Axum** for fast HTTP server
 - **JWT authentication** with bcrypt password hashing
 - **PostgreSQL** with Sqlx for database operations
 - **Redis** for caching/session storage
