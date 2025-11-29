@@ -1,4 +1,4 @@
-use axum::{Json, extract::State};
+use axum::{Json, extract::State, http::StatusCode};
 use redis::Client as RedisClient;
 use serde::Serialize;
 use sqlx::PgPool;
@@ -18,7 +18,9 @@ pub struct ServicesStatus {
     redis: &'static str,
 }
 
-pub async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
+pub async fn health_check(
+    State(state): State<AppState>,
+) -> Result<(StatusCode, Json<HealthResponse>), StatusCode> {
     let postgres_ok = check_postgres(&state.db_pool).await;
     let redis_ok = check_redis(&state.redis_client).await;
 
@@ -28,13 +30,22 @@ pub async fn health_check(State(state): State<AppState>) -> Json<HealthResponse>
         "degraded"
     };
 
-    Json(HealthResponse {
-        status: overall_status,
-        services: ServicesStatus {
-            postgres: if postgres_ok { "ok" } else { "error" },
-            redis: if redis_ok { "ok" } else { "error" },
-        },
-    })
+    let status_code = if overall_status == "ok" {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    Ok((
+        status_code,
+        Json(HealthResponse {
+            status: overall_status,
+            services: ServicesStatus {
+                postgres: if postgres_ok { "ok" } else { "error" },
+                redis: if redis_ok { "ok" } else { "error" },
+            },
+        }),
+    ))
 }
 
 async fn check_postgres(pool: &PgPool) -> bool {
@@ -44,7 +55,7 @@ async fn check_postgres(pool: &PgPool) -> bool {
     {
         Ok(_) => true,
         Err(err) => {
-            error!(%err, "Postgres health check failed");
+            error!(%err, "Database health check failed");
             false
         }
     }
